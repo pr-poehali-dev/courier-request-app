@@ -1,9 +1,10 @@
 import { useState } from "react";
 import Icon from "@/components/ui/icon";
+import CrimeaMap from "@/components/CrimeaMap";
 
 type Screen = "home" | "new-order" | "offers" | "chat" | "courier-register";
 type UserRole = "customer" | "courier" | null;
-type MapPoint = { x: number; y: number } | null;
+type MapPoint = { lat: number; lng: number } | null;
 
 const MOCK_OFFERS = [
   { id: 1, name: "Алексей К.", rating: 4.9, trips: 312, price: 350, time: "~20 мин", comment: "Заберу сразу, машина грузовая" },
@@ -39,13 +40,10 @@ export default function Index() {
   const [passportSeries, setPassportSeries] = useState("");
   const [passportNumber, setPassportNumber] = useState("");
 
-  const handleMapClick = (e: React.MouseEvent<HTMLDivElement>) => {
+  const handleMapClick = (latlng: { lat: number; lng: number }) => {
     if (!selectingPoint) return;
-    const rect = e.currentTarget.getBoundingClientRect();
-    const x = ((e.clientX - rect.left) / rect.width) * 100;
-    const y = ((e.clientY - rect.top) / rect.height) * 100;
-    if (selectingPoint === "A") setPointA({ x, y });
-    else setPointB({ x, y });
+    if (selectingPoint === "A") setPointA(latlng);
+    else setPointB(latlng);
     setSelectingPoint(null);
   };
 
@@ -266,61 +264,20 @@ export default function Index() {
               </div>
             </div>
 
-            <div
-              className="map-container relative"
-              style={{ height: 220, cursor: selectingPoint ? "crosshair" : "default" }}
-              onClick={handleMapClick}
-            >
+            <div className="relative">
               {selectingPoint && (
-                <div className="absolute inset-0 flex items-center justify-center z-10 pointer-events-none">
-                  <div className="glass-card px-4 py-2 rounded-xl border border-orange">
-                    <span className="text-orange text-sm font-semibold">Кликните — поставить точку {selectingPoint}</span>
+                <div className="absolute top-3 left-1/2 -translate-x-1/2 z-[1000] pointer-events-none">
+                  <div className="glass-card px-4 py-2 rounded-xl border border-orange shadow-lg">
+                    <span className="text-orange text-sm font-semibold">Кликните на карту — точка {selectingPoint}</span>
                   </div>
                 </div>
               )}
-
-              {/* Decorative roads */}
-              <div className="absolute inset-0 opacity-40">
-                <div className="absolute bg-white/8 rounded" style={{ left: "10%", top: "45%", width: "80%", height: 2 }} />
-                <div className="absolute bg-white/8 rounded" style={{ left: "35%", top: "10%", width: 2, height: "80%" }} />
-                <div className="absolute bg-white/5 rounded" style={{ left: "60%", top: "20%", width: "25%", height: 2, transform: "rotate(35deg)" }} />
-                <div className="absolute bg-white/5 rounded" style={{ left: "5%", top: "65%", width: "40%", height: 2, transform: "rotate(-20deg)" }} />
-              </div>
-
-              {pointA && (
-                <div className="absolute z-20" style={{ left: `${pointA.x}%`, top: `${pointA.y}%`, transform: "translate(-50%,-100%)" }}>
-                  <div className="flex flex-col items-center">
-                    <div className="w-8 h-8 bg-green-500 rounded-full border-2 border-white flex items-center justify-center shadow-lg text-white text-xs font-bold">А</div>
-                    <div className="w-0.5 h-3 bg-green-500"></div>
-                  </div>
-                </div>
-              )}
-              {pointB && (
-                <div className="absolute z-20" style={{ left: `${pointB.x}%`, top: `${pointB.y}%`, transform: "translate(-50%,-100%)" }}>
-                  <div className="flex flex-col items-center">
-                    <div className="w-8 h-8 bg-blue-500 rounded-full border-2 border-white flex items-center justify-center shadow-lg text-white text-xs font-bold">Б</div>
-                    <div className="w-0.5 h-3 bg-blue-500"></div>
-                  </div>
-                </div>
-              )}
-
-              {pointA && pointB && (
-                <svg className="absolute inset-0 w-full h-full z-10 pointer-events-none">
-                  <defs>
-                    <linearGradient id="rg" x1="0%" y1="0%" x2="100%" y2="0%">
-                      <stop offset="0%" stopColor="#22c55e" />
-                      <stop offset="100%" stopColor="#3b82f6" />
-                    </linearGradient>
-                  </defs>
-                  <line x1={`${pointA.x}%`} y1={`${pointA.y}%`} x2={`${pointB.x}%`} y2={`${pointB.y}%`} stroke="url(#rg)" strokeWidth="2" strokeDasharray="6,4" />
-                </svg>
-              )}
-
-              {!pointA && !pointB && !selectingPoint && (
-                <div className="absolute bottom-3 left-0 right-0 text-center text-[10px] text-white/30">
-                  Нажмите кнопки выше для выбора точек маршрута
-                </div>
-              )}
+              <CrimeaMap
+                pointA={pointA}
+                pointB={pointB}
+                selectingPoint={selectingPoint}
+                onMapClick={handleMapClick}
+              />
             </div>
           </div>
 
