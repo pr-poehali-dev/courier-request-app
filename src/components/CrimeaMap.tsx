@@ -11,13 +11,14 @@ interface CrimeaMapProps {
   pointB: LatLng | null;
   selectingPoint: "A" | "B" | null;
   onMapClick: (latlng: LatLng) => void;
+  flyToPoint?: LatLng | null;
 }
 
 // Черноморское, Крым
 const CRIMEA_CENTER: [number, number] = [45.5093, 32.6889];
 const ZOOM = 9;
 
-export default function CrimeaMap({ pointA, pointB, selectingPoint, onMapClick }: CrimeaMapProps) {
+export default function CrimeaMap({ pointA, pointB, selectingPoint, onMapClick, flyToPoint }: CrimeaMapProps) {
   const mapRef = useRef<HTMLDivElement>(null);
   const mapInstanceRef = useRef<any>(null);
   const markerARef = useRef<any>(null);
@@ -134,6 +135,12 @@ export default function CrimeaMap({ pointA, pointB, selectingPoint, onMapClick }
     updateRouteLine(pointARef.current, pointB);
    
   }, [pointB, updateRouteLine]);
+
+  // fly to when address selected from suggestions
+  useEffect(() => {
+    if (!flyToPoint || !mapInstanceRef.current) return;
+    mapInstanceRef.current.flyTo([flyToPoint.lat, flyToPoint.lng], 13, { duration: 1 });
+  }, [flyToPoint]);
 
   return <div ref={mapRef} style={{ height: 280, width: "100%" }} />;
 }

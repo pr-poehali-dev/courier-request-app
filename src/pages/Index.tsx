@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useRef } from "react";
 import Icon from "@/components/ui/icon";
 import CrimeaMap from "@/components/CrimeaMap";
 
@@ -33,6 +33,15 @@ export default function Index() {
   const [bargainPrice, setBargainPrice] = useState("");
   const [contact, setContact] = useState("");
   const [phone, setPhone] = useState("");
+  const [addressA, setAddressA] = useState("");
+  const [addressB, setAddressB] = useState("");
+  const [suggestionsA, setSuggestionsA] = useState<{display_name: string; lat: string; lon: string}[]>([]);
+  const [suggestionsB, setSuggestionsB] = useState<{display_name: string; lat: string; lon: string}[]>([]);
+  const [loadingA, setLoadingA] = useState(false);
+  const [loadingB, setLoadingB] = useState(false);
+  const [flyTo, setFlyTo] = useState<{lat: number; lng: number} | null>(null);
+  const timerA = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const timerB = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   const [regStep, setRegStep] = useState(1);
   const [regName, setRegName] = useState("");
@@ -42,9 +51,68 @@ export default function Index() {
 
   const handleMapClick = (latlng: { lat: number; lng: number }) => {
     if (!selectingPoint) return;
-    if (selectingPoint === "A") setPointA(latlng);
-    else setPointB(latlng);
+    if (selectingPoint === "A") {
+      setPointA(latlng);
+      reverseGeocode(latlng, setAddressA);
+    } else {
+      setPointB(latlng);
+      reverseGeocode(latlng, setAddressB);
+    }
     setSelectingPoint(null);
+  };
+
+  const reverseGeocode = async (latlng: { lat: number; lng: number }, setter: (v: string) => void) => {
+    try {
+      const res = await fetch(
+        `https://nominatim.openstreetmap.org/reverse?lat=${latlng.lat}&lon=${latlng.lng}&format=json&accept-language=ru`,
+        { headers: { "Accept-Language": "ru" } }
+      );
+      const data = await res.json();
+      if (data.display_name) {
+        const parts = data.display_name.split(",");
+        setter(parts.slice(0, 3).join(", "));
+      }
+    } catch { /* silent */ }
+  };
+
+  const searchAddress = async (query: string, point: "A" | "B") => {
+    if (query.length < 3) {
+      if (point === "A") setSuggestionsA([]); else setSuggestionsB([]);
+      return;
+    }
+    if (point === "A") setLoadingA(true); else setLoadingB(true);
+    try {
+      const res = await fetch(
+        `https://nominatim.openstreetmap.org/search?q=${encodeURIComponent(query + " Крым")}&format=json&limit=5&accept-language=ru`,
+        { headers: { "Accept-Language": "ru" } }
+      );
+      const data = await res.json();
+      if (point === "A") setSuggestionsA(data); else setSuggestionsB(data);
+    } catch { /* silent */ }
+    if (point === "A") setLoadingA(false); else setLoadingB(false);
+  };
+
+  const handleAddressInput = (value: string, point: "A" | "B") => {
+    if (point === "A") { setAddressA(value); }
+    else { setAddressB(value); }
+    const timer = point === "A" ? timerA : timerB;
+    if (timer.current) clearTimeout(timer.current);
+    timer.current = setTimeout(() => searchAddress(value, point), 500);
+  };
+
+  const selectSuggestion = (s: { display_name: string; lat: string; lon: string }, point: "A" | "B") => {
+    const latlng = { lat: parseFloat(s.lat), lng: parseFloat(s.lon) };
+    const label = s.display_name.split(",").slice(0, 3).join(", ");
+    if (point === "A") {
+      setPointA(latlng);
+      setAddressA(label);
+      setSuggestionsA([]);
+    } else {
+      setPointB(latlng);
+      setAddressB(label);
+      setSuggestionsB([]);
+    }
+    setFlyTo(latlng);
   };
 
   const sendMessage = () => {
@@ -264,6 +332,79 @@ export default function Index() {
               </div>
             </div>
 
+            {/* Address inputs */}
+            <div className="px-4 pb-3 space-y-2">
+              {/* Point A */}
+              <div className="relative">
+                <div className="flex items-center gap-2 bg-[var(--brand-surface)] border border-[var(--brand-border)] rounded-xl px-3 py-2.5 focus-within:border-green-500 transition-colors">
+                  <div className="w-6 h-6 bg-green-500 rounded-full flex items-center justify-center flex-shrink-0 text-white text-[11px] font-bold">А</div>
+                  <input
+                    type="text"
+                    value={addressA}
+                    onChange={(e) => handleAddressInput(e.target.value, "A")}
+                    onFocus={() => setSelectingPoint("A")}
+                    placeholder="Откуда забрать..."
+                    className="flex-1 bg-transparent text-sm text-white placeholder-[var(--brand-text-muted)] focus:outline-none"
+                  />
+                  {loadingA && <div className="w-4 h-4 border-2 border-orange border-t-transparent rounded-full animate-spin flex-shrink-0" />}
+                  {pointA && !loadingA && <Icon name="CheckCircle" size={14} className="text-green-400 flex-shrink-0" />}
+                </div>
+                {suggestionsA.length > 0 && (
+                  <div className="absolute top-full left-0 right-0 mt-1 glass-card border border-[var(--brand-border)] rounded-xl overflow-hidden z-[2000] shadow-xl">
+                    {suggestionsA.map((s, i) => (
+                      <button
+                        key={i}
+                        onClick={() => selectSuggestion(s, "A")}
+                        className="w-full text-left px-3 py-2.5 text-sm text-white hover:bg-[var(--brand-surface)] transition-colors border-b border-[var(--brand-border)] last:border-0 flex items-start gap-2"
+                      >
+                        <Icon name="MapPin" size={13} className="text-green-400 flex-shrink-0 mt-0.5" />
+                        <span className="line-clamp-2 text-xs leading-relaxed">{s.display_name}</span>
+                      </button>
+                    ))}
+                  </div>
+                )}
+              </div>
+
+              {/* Route connector */}
+              <div className="flex items-center gap-2 px-3">
+                <div className="w-6 flex justify-center">
+                  <div className="w-0.5 h-4 bg-[var(--brand-border)]" />
+                </div>
+                <span className="text-[10px] text-[var(--brand-text-muted)]">маршрут</span>
+              </div>
+
+              {/* Point B */}
+              <div className="relative">
+                <div className="flex items-center gap-2 bg-[var(--brand-surface)] border border-[var(--brand-border)] rounded-xl px-3 py-2.5 focus-within:border-blue-500 transition-colors">
+                  <div className="w-6 h-6 bg-blue-500 rounded-full flex items-center justify-center flex-shrink-0 text-white text-[11px] font-bold">Б</div>
+                  <input
+                    type="text"
+                    value={addressB}
+                    onChange={(e) => handleAddressInput(e.target.value, "B")}
+                    onFocus={() => setSelectingPoint("B")}
+                    placeholder="Куда доставить..."
+                    className="flex-1 bg-transparent text-sm text-white placeholder-[var(--brand-text-muted)] focus:outline-none"
+                  />
+                  {loadingB && <div className="w-4 h-4 border-2 border-orange border-t-transparent rounded-full animate-spin flex-shrink-0" />}
+                  {pointB && !loadingB && <Icon name="CheckCircle" size={14} className="text-blue-400 flex-shrink-0" />}
+                </div>
+                {suggestionsB.length > 0 && (
+                  <div className="absolute top-full left-0 right-0 mt-1 glass-card border border-[var(--brand-border)] rounded-xl overflow-hidden z-[2000] shadow-xl">
+                    {suggestionsB.map((s, i) => (
+                      <button
+                        key={i}
+                        onClick={() => selectSuggestion(s, "B")}
+                        className="w-full text-left px-3 py-2.5 text-sm text-white hover:bg-[var(--brand-surface)] transition-colors border-b border-[var(--brand-border)] last:border-0 flex items-start gap-2"
+                      >
+                        <Icon name="MapPin" size={13} className="text-blue-400 flex-shrink-0 mt-0.5" />
+                        <span className="line-clamp-2 text-xs leading-relaxed">{s.display_name}</span>
+                      </button>
+                    ))}
+                  </div>
+                )}
+              </div>
+            </div>
+
             <div className="relative">
               {selectingPoint && (
                 <div className="absolute top-3 left-1/2 -translate-x-1/2 z-[1000] pointer-events-none">
@@ -277,6 +418,7 @@ export default function Index() {
                 pointB={pointB}
                 selectingPoint={selectingPoint}
                 onMapClick={handleMapClick}
+                flyToPoint={flyTo}
               />
             </div>
           </div>
