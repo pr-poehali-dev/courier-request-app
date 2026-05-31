@@ -2,7 +2,7 @@ import { useState, useRef } from "react";
 import Icon from "@/components/ui/icon";
 import CrimeaMap from "@/components/CrimeaMap";
 
-type Screen = "home" | "new-order" | "offers" | "chat" | "courier-register";
+type Screen = "home" | "new-order" | "offers" | "chat" | "courier-register" | "order-card";
 type UserRole = "customer" | "courier" | null;
 type MapPoint = { lat: number; lng: number } | null;
 
@@ -33,6 +33,8 @@ export default function Index() {
   const [bargainPrice, setBargainPrice] = useState("");
   const [contact, setContact] = useState("");
   const [phone, setPhone] = useState("");
+  const [arrivalTime, setArrivalTime] = useState("");
+  const [acceptedOffer, setAcceptedOffer] = useState<typeof MOCK_OFFERS[0] | null>(null);
   const [addressA, setAddressA] = useState("");
   const [addressB, setAddressB] = useState("");
   const [suggestionsA, setSuggestionsA] = useState<{display_name: string; lat: string; lon: string}[]>([]);
@@ -509,6 +511,45 @@ export default function Index() {
             />
           </div>
 
+          {/* Arrival time */}
+          <div className="glass-card rounded-2xl p-4">
+            <label className="text-sm font-semibold text-white flex items-center gap-2 mb-3">
+              <Icon name="Clock" size={16} className="text-orange" />
+              Время прибытия курьера к точке А
+            </label>
+            <div className="flex gap-2">
+              <input
+                type="time"
+                value={arrivalTime}
+                onChange={(e) => setArrivalTime(e.target.value)}
+                className="flex-1 bg-[var(--brand-surface)] border border-[var(--brand-border)] rounded-xl px-4 py-3 text-sm text-white focus:outline-none focus:border-orange [color-scheme:dark]"
+              />
+              <div className="flex flex-col gap-1.5">
+                {["Сейчас", "Через 1ч", "Через 2ч"].map((t) => {
+                  const now = new Date();
+                  const addH = t === "Сейчас" ? 0 : t === "Через 1ч" ? 1 : 2;
+                  now.setHours(now.getHours() + addH);
+                  const val = `${String(now.getHours()).padStart(2,"0")}:${String(now.getMinutes()).padStart(2,"0")}`;
+                  return (
+                    <button
+                      key={t}
+                      onClick={() => setArrivalTime(val)}
+                      className={`px-3 py-1 rounded-lg text-[11px] font-semibold transition-all ${arrivalTime === val ? "bg-orange text-white" : "bg-[var(--brand-surface)] text-[var(--brand-text-muted)] hover:text-orange border border-[var(--brand-border)]"}`}
+                    >
+                      {t}
+                    </button>
+                  );
+                })}
+              </div>
+            </div>
+            {arrivalTime && (
+              <div className="mt-2 flex items-center gap-2 text-xs text-green-400">
+                <Icon name="CheckCircle" size={12} />
+                <span>Курьер должен прибыть к {arrivalTime}</span>
+              </div>
+            )}
+          </div>
+
           {/* Contacts */}
           <div className="glass-card rounded-2xl p-4 space-y-3">
             <label className="text-sm font-semibold text-white flex items-center gap-2">
@@ -654,7 +695,15 @@ export default function Index() {
                     {role === "courier" ? "Предложить цену" : "Торговаться"}
                   </button>
                   <button
-                    onClick={() => { setSelectedOffer(offer.id); setScreen("chat"); }}
+                    onClick={() => {
+                      setSelectedOffer(offer.id);
+                      if (role === "courier") {
+                        setAcceptedOffer(offer);
+                        setScreen("order-card");
+                      } else {
+                        setScreen("chat");
+                      }
+                    }}
                     className="flex-1 py-2 bg-orange text-white rounded-xl text-xs font-semibold hover:brightness-110 transition-all flex items-center justify-center gap-1.5"
                   >
                     <Icon name={role === "courier" ? "Package" : "CheckCircle"} size={13} />
@@ -664,6 +713,185 @@ export default function Index() {
               )}
             </div>
           ))}
+        </div>
+      </div>
+    );
+  }
+
+  // ——— ORDER CARD (для курьера) ———
+  if (screen === "order-card") {
+    const km = pointA && pointB ? calcDistance(pointA, pointB) : null;
+    const minutes = km ? Math.round((km / 15) * 60) : null;
+    const timeStr = minutes
+      ? minutes >= 60 ? `${Math.floor(minutes/60)} ч ${minutes%60} мин` : `${minutes} мин`
+      : null;
+
+    return (
+      <div className="min-h-screen" style={{ background: "var(--brand-blue)" }}>
+        <header className="flex items-center gap-3 px-4 py-4 border-b border-[var(--brand-border)]">
+          <button onClick={() => setScreen("offers")} className="w-9 h-9 glass-card rounded-xl flex items-center justify-center hover:border-orange transition-colors">
+            <Icon name="ArrowLeft" size={18} className="text-white" />
+          </button>
+          <div className="flex-1">
+            <h1 className="font-display text-xl text-white">КАРТОЧКА ЗАКАЗА</h1>
+            <p className="text-[var(--brand-text-muted)] text-xs">Заказ принят</p>
+          </div>
+          <div className="flex items-center gap-1.5 px-3 py-1.5 bg-green-500/15 border border-green-500/40 rounded-full">
+            <span className="status-dot bg-green-400 pulse-orange"></span>
+            <span className="text-xs text-green-400 font-semibold">Активен</span>
+          </div>
+        </header>
+
+        <div className="px-4 mt-4 pb-6 space-y-3 animate-slide-up">
+
+          {/* Courier accepted strip */}
+          {acceptedOffer && (
+            <div className="glass-card rounded-2xl p-4 flex items-center gap-3 border-l-4 border-orange">
+              <div className="w-12 h-12 rounded-xl bg-gradient-to-br from-orange/30 to-orange/10 border border-orange/30 flex items-center justify-center flex-shrink-0">
+                <Icon name="User" size={22} className="text-orange" />
+              </div>
+              <div className="flex-1">
+                <div className="text-white font-semibold">{acceptedOffer.name}</div>
+                <div className="flex items-center gap-2 mt-0.5">
+                  <Icon name="Star" size={11} className="text-yellow-400" />
+                  <span className="text-xs text-yellow-400">{acceptedOffer.rating}</span>
+                  <span className="text-[var(--brand-text-muted)] text-xs">· {acceptedOffer.trips} доставок</span>
+                </div>
+              </div>
+              <div className="font-display text-2xl text-orange">{acceptedOffer.price}₽</div>
+            </div>
+          )}
+
+          {/* Time to arrive */}
+          {arrivalTime && (
+            <div className="glass-card rounded-2xl p-4 flex items-center gap-4 border border-orange/50 bg-orange-dim">
+              <div className="w-12 h-12 bg-orange rounded-xl flex items-center justify-center flex-shrink-0 orange-glow">
+                <Icon name="Clock" size={22} className="text-white" />
+              </div>
+              <div>
+                <div className="text-xs text-[var(--brand-text-muted)] mb-0.5">Прибыть к точке А</div>
+                <div className="font-display text-3xl text-orange leading-none">{arrivalTime}</div>
+                <div className="text-xs text-[var(--brand-text-muted)] mt-0.5">— время, указанное заказчиком</div>
+              </div>
+            </div>
+          )}
+
+          {/* Route */}
+          <div className="glass-card rounded-2xl p-4">
+            <div className="text-xs text-[var(--brand-text-muted)] mb-3 flex items-center gap-2">
+              <Icon name="Navigation" size={13} className="text-orange" />
+              Маршрут доставки
+            </div>
+            <div className="space-y-3">
+              <div className="flex items-start gap-3">
+                <div className="flex flex-col items-center pt-1">
+                  <div className="w-7 h-7 bg-green-500 rounded-full flex items-center justify-center text-white text-xs font-bold flex-shrink-0">А</div>
+                  {pointB && <div className="w-0.5 flex-1 bg-[var(--brand-border)] mt-1 min-h-[20px]" />}
+                </div>
+                <div className="flex-1 pb-3">
+                  <div className="text-[10px] text-[var(--brand-text-muted)] mb-0.5">Точка отправления</div>
+                  <div className="text-sm text-white leading-snug">
+                    {addressA || "Адрес не указан"}
+                  </div>
+                  {pointA && (
+                    <div className="text-[10px] text-[var(--brand-text-muted)] mt-0.5">
+                      {pointA.lat.toFixed(5)}, {pointA.lng.toFixed(5)}
+                    </div>
+                  )}
+                </div>
+              </div>
+              <div className="flex items-start gap-3">
+                <div className="w-7 h-7 bg-blue-500 rounded-full flex items-center justify-center text-white text-xs font-bold flex-shrink-0">Б</div>
+                <div className="flex-1">
+                  <div className="text-[10px] text-[var(--brand-text-muted)] mb-0.5">Точка назначения</div>
+                  <div className="text-sm text-white leading-snug">
+                    {addressB || "Адрес не указан"}
+                  </div>
+                  {pointB && (
+                    <div className="text-[10px] text-[var(--brand-text-muted)] mt-0.5">
+                      {pointB.lat.toFixed(5)}, {pointB.lng.toFixed(5)}
+                    </div>
+                  )}
+                </div>
+              </div>
+            </div>
+
+            {km && timeStr && (
+              <div className="flex gap-3 mt-4 pt-3 border-t border-[var(--brand-border)]">
+                <div className="flex-1 flex items-center gap-2">
+                  <Icon name="Ruler" size={14} className="text-orange" />
+                  <div>
+                    <div className="text-xs text-[var(--brand-text-muted)]">Расстояние</div>
+                    <div className="text-sm font-semibold text-white">{km.toFixed(1)} км</div>
+                  </div>
+                </div>
+                <div className="w-px bg-[var(--brand-border)]" />
+                <div className="flex-1 flex items-center gap-2">
+                  <Icon name="Timer" size={14} className="text-orange" />
+                  <div>
+                    <div className="text-xs text-[var(--brand-text-muted)]">В пути ≈15 км/ч</div>
+                    <div className="text-sm font-semibold text-white">{timeStr}</div>
+                  </div>
+                </div>
+              </div>
+            )}
+          </div>
+
+          {/* Comment */}
+          {comment && (
+            <div className="glass-card rounded-2xl p-4">
+              <div className="text-xs text-[var(--brand-text-muted)] mb-2 flex items-center gap-2">
+                <Icon name="MessageSquare" size={13} className="text-orange" />
+                Комментарий заказчика
+              </div>
+              <p className="text-sm text-white leading-relaxed">"{comment}"</p>
+            </div>
+          )}
+
+          {/* Contacts */}
+          {(phone || contact) && (
+            <div className="glass-card rounded-2xl p-4 space-y-3">
+              <div className="text-xs text-[var(--brand-text-muted)] flex items-center gap-2">
+                <Icon name="Phone" size={13} className="text-orange" />
+                Контакты заказчика
+              </div>
+              {phone && (
+                <a href={`tel:${phone}`} className="flex items-center gap-3 bg-[var(--brand-surface)] rounded-xl px-4 py-3 hover:border-orange transition-colors group border border-[var(--brand-border)]">
+                  <div className="w-8 h-8 bg-orange-dim border border-orange/40 rounded-lg flex items-center justify-center">
+                    <Icon name="Phone" size={15} className="text-orange" />
+                  </div>
+                  <span className="text-sm text-white group-hover:text-orange transition-colors">{phone}</span>
+                  <Icon name="ChevronRight" size={14} className="text-[var(--brand-text-muted)] ml-auto" />
+                </a>
+              )}
+              {contact && (
+                <div className="flex items-center gap-3 bg-[var(--brand-surface)] rounded-xl px-4 py-3 border border-[var(--brand-border)]">
+                  <div className="w-8 h-8 bg-blue-500/15 border border-blue-500/30 rounded-lg flex items-center justify-center">
+                    <Icon name="Link" size={15} className="text-blue-400" />
+                  </div>
+                  <span className="text-sm text-white truncate">{contact}</span>
+                </div>
+              )}
+            </div>
+          )}
+
+          {/* Actions */}
+          <div className="flex gap-3 pt-2">
+            <button
+              onClick={() => setScreen("chat")}
+              className="flex-1 py-4 glass-card text-white font-semibold rounded-xl flex items-center justify-center gap-2 hover:border-orange transition-all"
+            >
+              <Icon name="MessageCircle" size={18} />
+              Написать
+            </button>
+            <button
+              onClick={goHome}
+              className="flex-1 py-4 bg-orange text-white font-bold rounded-xl flex items-center justify-center gap-2 orange-glow hover:brightness-110 transition-all"
+            >
+              <Icon name="CheckCircle" size={18} />
+              Выполнено
+            </button>
+          </div>
         </div>
       </div>
     );
