@@ -100,6 +100,16 @@ export default function Index() {
     timer.current = setTimeout(() => searchAddress(value, point), 500);
   };
 
+  const calcDistance = (a: {lat:number;lng:number}, b: {lat:number;lng:number}): number => {
+    const R = 6371;
+    const dLat = (b.lat - a.lat) * Math.PI / 180;
+    const dLng = (b.lng - a.lng) * Math.PI / 180;
+    const x = Math.sin(dLat/2) * Math.sin(dLat/2) +
+      Math.cos(a.lat * Math.PI/180) * Math.cos(b.lat * Math.PI/180) *
+      Math.sin(dLng/2) * Math.sin(dLng/2);
+    return R * 2 * Math.atan2(Math.sqrt(x), Math.sqrt(1-x));
+  };
+
   const selectSuggestion = (s: { display_name: string; lat: string; lon: string }, point: "A" | "B") => {
     const latlng = { lat: parseFloat(s.lat), lng: parseFloat(s.lon) };
     const label = s.display_name.split(",").slice(0, 3).join(", ");
@@ -404,6 +414,30 @@ export default function Index() {
                 )}
               </div>
             </div>
+
+            {/* Distance + time badge */}
+            {pointA && pointB && (() => {
+              const km = calcDistance(pointA, pointB);
+              const minutes = Math.round((km / 15) * 60);
+              const hours = Math.floor(minutes / 60);
+              const mins = minutes % 60;
+              const timeStr = hours > 0 ? `${hours} ч ${mins} мин` : `${mins} мин`;
+              return (
+                <div className="mx-4 mb-3 flex items-center gap-3 bg-orange-dim border border-orange/40 rounded-xl px-4 py-3 animate-fade-in">
+                  <div className="flex items-center gap-1.5 flex-1">
+                    <Icon name="Ruler" size={15} className="text-orange" />
+                    <span className="text-sm font-semibold text-white">{km.toFixed(1)} км</span>
+                    <span className="text-[var(--brand-text-muted)] text-xs">по прямой</span>
+                  </div>
+                  <div className="w-px h-6 bg-[var(--brand-border)]" />
+                  <div className="flex items-center gap-1.5 flex-1">
+                    <Icon name="Clock" size={15} className="text-orange" />
+                    <span className="text-sm font-semibold text-white">{timeStr}</span>
+                    <span className="text-[var(--brand-text-muted)] text-xs">≈15 км/ч</span>
+                  </div>
+                </div>
+              );
+            })()}
 
             <div className="relative">
               {selectingPoint && (
